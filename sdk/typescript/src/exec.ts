@@ -41,9 +41,9 @@ const TYPESCRIPT_SDK_ORIGINATOR = "codex_sdk_ts";
 
 export class CodexExec {
   private executablePath: string;
-  private envOverride?: Record<string, string>;
+  private envOverride?: NodeJS.ProcessEnv;
 
-  constructor(executablePath: string | null = null, env?: Record<string, string>) {
+  constructor(executablePath: string | null = null, env?: NodeJS.ProcessEnv) {
     this.executablePath = executablePath || findCodexPath();
     this.envOverride = env;
   }
@@ -106,12 +106,17 @@ export class CodexExec {
       commandArgs.push("resume", args.threadId);
     }
 
-    const env: Record<string, string> = {};
+    const env: NodeJS.ProcessEnv = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined) {
+        env[key] = value;
+      }
+    }
     if (this.envOverride) {
-      Object.assign(env, this.envOverride);
-    } else {
-      for (const [key, value] of Object.entries(process.env)) {
-        if (value !== undefined) {
+      for (const [key, value] of Object.entries(this.envOverride)) {
+        if (value === undefined) {
+          delete env[key];
+        } else {
           env[key] = value;
         }
       }

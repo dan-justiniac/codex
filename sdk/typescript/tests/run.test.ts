@@ -348,7 +348,7 @@ describe("Codex", () => {
     }
   });
 
-  it("allows overriding the env passed to the Codex CLI", async () => {
+  it("merges process env with custom overrides for the Codex CLI", async () => {
     const { url, close } = await startResponsesTestProxy({
       statusCode: 200,
       responseBodies: [
@@ -361,14 +361,20 @@ describe("Codex", () => {
     });
 
     const { envs: spawnEnvs, restore } = codexExecSpy();
-    process.env.CODEX_ENV_SHOULD_NOT_LEAK = "leak";
+    process.env.CODEX_PROCESS_ONLY = "process-only";
+    process.env.CODEX_PROCESS_OVERRIDE = "process-old";
+    process.env.CODEX_REMOVE_ME = "remove-me";
 
     try {
       const client = new Codex({
         codexPathOverride: codexExecPath,
         baseUrl: url,
         apiKey: "test",
-        env: { CUSTOM_ENV: "custom" },
+        env: {
+          CUSTOM_ENV: "custom",
+          CODEX_PROCESS_OVERRIDE: "process-new",
+          CODEX_REMOVE_ME: undefined,
+        },
       });
 
       const thread = client.startThread();
@@ -380,12 +386,16 @@ describe("Codex", () => {
         throw new Error("Spawn env missing");
       }
       expect(spawnEnv.CUSTOM_ENV).toBe("custom");
-      expect(spawnEnv.CODEX_ENV_SHOULD_NOT_LEAK).toBeUndefined();
+      expect(spawnEnv.CODEX_PROCESS_ONLY).toBe("process-only");
+      expect(spawnEnv.CODEX_PROCESS_OVERRIDE).toBe("process-new");
+      expect(spawnEnv.CODEX_REMOVE_ME).toBeUndefined();
       expect(spawnEnv.OPENAI_BASE_URL).toBe(url);
       expect(spawnEnv.CODEX_API_KEY).toBe("test");
       expect(spawnEnv.CODEX_INTERNAL_ORIGINATOR_OVERRIDE).toBeDefined();
     } finally {
-      delete process.env.CODEX_ENV_SHOULD_NOT_LEAK;
+      delete process.env.CODEX_PROCESS_ONLY;
+      delete process.env.CODEX_PROCESS_OVERRIDE;
+      delete process.env.CODEX_REMOVE_ME;
       restore();
       await close();
     }

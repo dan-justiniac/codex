@@ -3,8 +3,8 @@ export type CodexOptions = {
   baseUrl?: string;
   apiKey?: string;
   /**
-   * Environment variables passed to the Codex CLI process. When provided, the SDK
-   * will not inherit variables from `process.env`.
+   * Environment variables merged into the Codex CLI process environment.
+   * Values here override `process.env`; omit or set a key to `undefined` to remove it.
    */
-  env?: Record<string, string>;
+  env?: NodeJS.ProcessEnv;
 };
