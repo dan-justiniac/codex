@@ -41,11 +41,17 @@ const TYPESCRIPT_SDK_ORIGINATOR = "codex_sdk_ts";
 
 export class CodexExec {
   private executablePath: string;
-  private envOverride?: Record<string, string>;
+  private envOverride?: NodeJS.ProcessEnv;
+  private inheritParentEnv: boolean;
 
-  constructor(executablePath: string | null = null, env?: Record<string, string>) {
+  constructor(
+    executablePath: string | null = null,
+    env?: NodeJS.ProcessEnv,
+    inheritParentEnv: boolean = false,
+  ) {
     this.executablePath = executablePath || findCodexPath();
     this.envOverride = env;
+    this.inheritParentEnv = inheritParentEnv;
   }
 
   async *run(args: CodexExecArgs): AsyncGenerator<string> {
@@ -106,12 +112,22 @@ export class CodexExec {
       commandArgs.push("resume", args.threadId);
     }
 
-    const env: Record<string, string> = {};
-    if (this.envOverride) {
-      Object.assign(env, this.envOverride);
-    } else {
+    const env: NodeJS.ProcessEnv = {};
+    const shouldInherit = !this.envOverride || this.inheritParentEnv;
+
+    if (shouldInherit) {
       for (const [key, value] of Object.entries(process.env)) {
         if (value !== undefined) {
+          env[key] = value;
+        }
+      }
+    }
+
+    if (this.envOverride) {
+      for (const [key, value] of Object.entries(this.envOverride)) {
+        if (value === undefined) {
+          delete env[key];
+        } else {
           env[key] = value;
         }
       }

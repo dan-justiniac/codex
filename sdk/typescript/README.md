@@ -118,16 +118,25 @@ const thread = codex.startThread({
 
 ### Controlling the Codex CLI environment
 
-By default, the Codex CLI inherits the Node.js process environment. Provide the optional `env` parameter when instantiating the
-`Codex` client to fully control which variables the CLI receives—useful for sandboxed hosts like Electron apps.
+When you supply `env`, the Codex CLI receives only the variables you provide (plus SDK-required ones). Set
+`inheritParentEnv: true` to merge with `process.env` instead—useful when multiple Codex clients run side-by-side with
+different configs.
 
 ```typescript
 const codex = new Codex({
   env: {
+    CODEX_HOME: "/path/to/planner-codex-home",
     PATH: "/usr/local/bin",
   },
+  inheritParentEnv: true, // merge instead of replace
+});
+
+// In merge mode you can also remove inherited keys:
+const isolated = new Codex({
+  env: { HTTP_PROXY: undefined },
+  inheritParentEnv: true,
 });
 ```
 
-The SDK still injects its required variables (such as `OPENAI_BASE_URL` and `CODEX_API_KEY`) on top of the environment you
-provide.
+The child process receives `{ ...process.env, ...env }` when `inheritParentEnv` is true; otherwise it receives only `env`,
+with the SDK still injecting its required variables (such as `OPENAI_BASE_URL` and `CODEX_API_KEY`) on top.
