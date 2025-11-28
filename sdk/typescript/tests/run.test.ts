@@ -348,7 +348,56 @@ describe("Codex", () => {
     }
   });
 
-  it("merges process env with custom overrides for the Codex CLI", async () => {
+  it("uses only provided env when inheritParentEnv is not set", async () => {
+    const { url, close } = await startResponsesTestProxy({
+      statusCode: 200,
+      responseBodies: [
+        sse(
+          responseStarted("response_1"),
+          assistantMessage("Custom env", "item_1"),
+          responseCompleted("response_1"),
+        ),
+      ],
+    });
+
+    const { envs: spawnEnvs, restore } = codexExecSpy();
+    process.env.CODEX_PROCESS_ONLY = "process-only";
+
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"));
+
+    try {
+      const client = new Codex({
+        codexPathOverride: codexExecPath,
+        baseUrl: url,
+        apiKey: "test",
+        env: {
+          CUSTOM_ENV: "custom",
+          CODEX_HOME: tempHome,
+        },
+      });
+
+      const thread = client.startThread();
+      await thread.run("custom env");
+
+      const spawnEnv = spawnEnvs[0];
+      expect(spawnEnv).toBeDefined();
+      if (!spawnEnv) {
+        throw new Error("Spawn env missing");
+      }
+      expect(spawnEnv.CUSTOM_ENV).toBe("custom");
+      expect(spawnEnv.CODEX_PROCESS_ONLY).toBeUndefined();
+      expect(spawnEnv.OPENAI_BASE_URL).toBe(url);
+      expect(spawnEnv.CODEX_API_KEY).toBe("test");
+      expect(spawnEnv.CODEX_INTERNAL_ORIGINATOR_OVERRIDE).toBeDefined();
+    } finally {
+      delete process.env.CODEX_PROCESS_ONLY;
+      fs.rmSync(tempHome, { recursive: true, force: true });
+      restore();
+      await close();
+    }
+  });
+
+  it("merges process env with custom overrides for the Codex CLI when inheritParentEnv is true", async () => {
     const { url, close } = await startResponsesTestProxy({
       statusCode: 200,
       responseBodies: [
@@ -365,6 +414,8 @@ describe("Codex", () => {
     process.env.CODEX_PROCESS_OVERRIDE = "process-old";
     process.env.CODEX_REMOVE_ME = "remove-me";
 
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"));
+
     try {
       const client = new Codex({
         codexPathOverride: codexExecPath,
@@ -374,7 +425,9 @@ describe("Codex", () => {
           CUSTOM_ENV: "custom",
           CODEX_PROCESS_OVERRIDE: "process-new",
           CODEX_REMOVE_ME: undefined,
+          CODEX_HOME: tempHome,
         },
+        inheritParentEnv: true,
       });
 
       const thread = client.startThread();
@@ -396,6 +449,7 @@ describe("Codex", () => {
       delete process.env.CODEX_PROCESS_ONLY;
       delete process.env.CODEX_PROCESS_OVERRIDE;
       delete process.env.CODEX_REMOVE_ME;
+      fs.rmSync(tempHome, { recursive: true, force: true });
       restore();
       await close();
     }
